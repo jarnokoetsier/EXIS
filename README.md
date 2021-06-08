@@ -7,6 +7,7 @@ The current version only supports the analysis of the Human Exon 1.0 ST array an
 
 ## Instructions
 1) Before using the app or workflow, source run the global R script (EXIS_Global.R).
+
 IMPORTANT: The current depends on the modified affy package from Brainarray.
 If you have installed the original affy package previously, please remove this package from your package library before source running the global R script.
 
