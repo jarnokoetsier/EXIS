@@ -11,7 +11,7 @@ The current version only supports the analysis of the Human Exon 1.0 ST array an
 IMPORTANT: The current analysis depends on the modified affy package from Brainarray.
 If you have installed the original affy package previously, please remove this package from your package library before source running the global R script.
 
-2) Make sure that the exon/transcript-specific CDF file is in your working directory or has been installed as a CDF package previously.
+2) Make sure that the exon/transcript-specific CDF is in your working directory or has been installed as a CDF package previously.
 Furthermore, when you would like to use the exon-specific probe set definition, also make sure to place the exon annotation file in your working directory.
 
 3) If you would like to use the EXIS app, run the app R script (EXIS_App.R). If you open this script in RStudio, you can simply press "Run App" in the top-right corner. 
