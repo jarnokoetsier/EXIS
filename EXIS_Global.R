@@ -9,9 +9,12 @@
 #####           ####        ####   ####         ######
 #####                                            #####
 #####################################################
-#       Isoform-specific expression analysis        #
 #####################################################
+#Isoform expression analysis
+
+
 #CREATED BY JARNO KOETSIER
+
 
 
 ###############################################################################################################################
@@ -935,19 +938,24 @@ exon_selection <- function(top.table, annotated, genes = NULL, transcripts = NUL
 
 ###################################################################################################################################
 
-makeBoxplots <- function(contrast, meta, data.expr, annotated, gene = NULL, transcripts = NULL, unique_exons = TRUE, genome_wide = FALSE) {
+makeBoxplots <- function(contrast, meta, data.expr, annotated, genes = NULL, transcripts = NULL, exons = NULL, unique_exons = TRUE, genome_wide = FALSE) {
   
   annotation1 <- annotated[complete.cases(annotated),]
   
   if (genome_wide == FALSE) {
-    if (!is.null(gene)){
-      gene <- as.data.frame(gene)
-      annotation1 <- inner_join(annotation1, gene, by = c("Gene" = "gene"))
+    if (!is.null(genes)){
+      genes <- as.data.frame(genes)
+      annotation1 <- inner_join(annotation1, genes, by = c("Gene" = "genes"))
     }
     
     if (!is.null(transcripts)){
       transcripts <- as.data.frame(transcripts)
       annotation1 <- inner_join(annotation1, transcripts, by = c("Transcript" = "transcripts"))
+    }
+    
+    if (!is.null(exons)){
+      exons <- as.data.frame(exons)
+      annotation1 <- inner_join(annotation1, exons, by = c("Exon.group" = "exons"))
     }
   }
      
@@ -1003,12 +1011,13 @@ makeBoxplots <- function(contrast, meta, data.expr, annotated, gene = NULL, tran
   
   final <- inner_join(final, samples, by = c("Samples" = "colnames(data.expr)"))
   
-  ggplot(data = final, aes(x = Grouping, y = logExpr, fill = Exons)) +
+  ggplot(data = final, aes(x = Exons, y = logExpr, fill = Grouping)) +
     geom_boxplot() +
     theme_minimal() +
-    theme(panel.grid.major.x = element_blank()) +
+    theme(panel.grid.major.x = element_blank(), axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) +
     xlab("") +
     ylab("logExpr")
+  
 }
 
 
@@ -1057,10 +1066,10 @@ makeBoxplots1 <- function(contrast, meta, data.expr, select.top.table) {
   
   final <- inner_join(final, samples, by = c("Samples" = "colnames(data.expr)"))
   
-  ggplot(data = final, aes(x = Grouping, y = logExpr, fill = Transcripts)) +
+  ggplot(data = final, aes(x = Transcripts, y = logExpr, fill = Grouping)) +
     geom_boxplot() +
     theme_minimal() +
-    theme(panel.grid.major.x = element_blank()) +
+    theme(panel.grid.major.x = element_blank(), axis.text.x=element_text(angle=90,hjust=1,vjust=0.5)) +
     xlab("") +
     ylab("logExpr")
 }
@@ -1262,31 +1271,97 @@ flat2Cdf<-function(file,chipType,tags=NULL,rows=2560,cols=2560,verbose=10,xyname
 #MakeCDFfile
 
 ###################################################################################################################################
-MakeCDFfile <- function(chiptype, organism, version, transcript = TRUE, robust = TRUE){
+MakeCDFfile <- function(chiptype, organism, version, annotation = "ense", robust = TRUE, rows = 1050){
   
-  if (transcript == FALSE) {
-    ##############
-    #Exon
-    ##############
-    mapping_file <- paste0(chiptype, "_", toupper(substring(organism, 1,1)), substring(organism, 2), "_ENSE_mapping.txt")
-    mapping <- read.table(mapping_file, sep = "\t", header = TRUE)
-    mapping$probe <- paste(mapping$Probe.X, mapping$Probe.Y, sep = "_")
+  
+  ####################################################
+  #1) Download probe mapping files from Brainarray
+  ####################################################
+  
+  #Brainarray's ENSEMBL gene mapping file
+  mapping_file_gene <- paste0(chiptype, "_", toupper(substring(organism, 1,1)), substring(organism, 2), "_ENSG_mapping.txt")
+  
+  if (!file.exists(mapping_file_gene)){
+    file_download <- paste0("http://mbni.org/customcdf/", version, ".0.0/ensg.download/", chiptype, "_",
+                            toupper(substring(organism, 1,1)), substring(organism, 2), "_ENSG_", version, ".0.0.zip")
     
-    #Exon groups
-    annotated <- read.table(file = paste(chiptype, organism, version, "OfficialNewProbeSets2.txt", sep = "_"), header = TRUE)
-    probesets <- as.data.frame(unique(annotated$Probe.set))
-    colnames(probesets) <- "Probe.Set.Name"
+    download.file(file_download, "probe_information_file.zip")
+    unzip("probe_information_file.zip", mapping_file_gene)
+    unlink("probe_information_file.zip")
+  }
+  
+  mapping_gene <- read.table(mapping_file_gene, sep = "\t", header = TRUE)
+  
+  
+  
+  #Brainarray's ENSEMBL transcript mapping file
+  mapping_file_transcript <- paste0(chiptype, "_", toupper(substring(organism, 1,1)), substring(organism, 2), "_ENST_mapping.txt")
+  
+  
+  
+  if (!file.exists(mapping_file_transcript)){
+    file_download <- paste0("http://mbni.org/customcdf/", version, ".0.0/enst.download/", chiptype, "_",
+                            toupper(substring(organism, 1,1)), substring(organism, 2), "_ENST_", version, ".0.0.zip")
     
-    mapping_ense <- inner_join(probesets, mapping, by = c("Probe.Set.Name" = "Probe.Set.Name"))
+    download.file(file_download, "probe_information_file.zip")
+    unzip("probe_information_file.zip", mapping_file_transcript)
+    unlink("probe_information_file.zip")
     
   }
   
-  if (transcript == TRUE) {
+  mapping_transcript <- read.table(mapping_file_transcript, sep = "\t", header = TRUE)
+  
+  
+  
+  #Brainarray's ENSEMBL exon mapping file
+  mapping_file_exon <- paste0(chiptype, "_", toupper(substring(organism, 1,1)), substring(organism, 2), "_ENSE_mapping.txt")
+  
+  
+  if (!file.exists(mapping_file_exon)){
+    file_download <- paste0("http://mbni.org/customcdf/", version, ".0.0/ense.download/", chiptype, "_",
+                            toupper(substring(organism, 1,1)), substring(organism, 2), "_ENSE_", version, ".0.0.zip")
+    
+    download.file(file_download, "probe_information_file.zip")
+    unzip("probe_information_file.zip", mapping_file_exon)
+    unlink("probe_information_file.zip")
+    
+  }
+  
+  mapping_exon <- read.table(mapping_file_exon, sep = "\t", header = TRUE)
+  
+  
+  
+  ####################################################
+  #2) Make probeset definition
+  ####################################################
+  
+  if (annotation == "ense") {
     ##############
-    #Transcripts
+    #ENSE
     ##############
-    mapping_file <- paste0(chiptype, "_", toupper(substring(organism, 1,1)), substring(organism, 2), "_ENST_mapping.txt")
-    mapping <- read.table(mapping_file, sep = "\t", header = TRUE)
+    mapping <- mapping_exon
+    mapping$probe <- paste(mapping$Probe.X, mapping$Probe.Y, sep = "_")
+    
+    #Exon groups
+    if (file.exists(paste(chiptype, organism, version, "ExonAnnotation.txt", sep = "_"))){
+      annotated <- read.table(file = paste(chiptype, organism, version, "ExonAnnotation.txt", sep = "_"), header = TRUE)
+      probesets <- as.data.frame(unique(annotated$Probe.set))
+      colnames(probesets) <- "Probe.Set.Name"
+      
+      mapping_ense <- inner_join(probesets, mapping, by = c("Probe.Set.Name" = "Probe.Set.Name"))
+      
+    }
+    
+    if (!file.exists(paste(chiptype, organism, version, "ExonAnnotation.txt", sep = "_"))){
+      print("Exon annotation file not found. Make sure to place this file in the working directory.")
+    }
+  }
+  
+  if (annotation == "enst") {
+    ##############
+    #ENST
+    ##############
+    mapping <- mapping_transcript
     mapping$probe <- paste(mapping$Probe.X, mapping$Probe.Y, sep = "_")
     mapping$Probe.Set.Name <- str_replace_all(mapping$Probe.Set.Name, "\\.._at", "")
     mapping$Probe.Set.Name <- str_replace_all(mapping$Probe.Set.Name, "\\..._at", "")
@@ -1306,47 +1381,10 @@ MakeCDFfile <- function(chiptype, organism, version, transcript = TRUE, robust =
     
   }
   
-  #Get mapping file
-  mapping_file_gene <- paste0(chiptype, "_", toupper(substring(organism, 1,1)), substring(organism, 2), "_ENSG_mapping.txt")
-  mapping_file_transcript <- paste0(chiptype, "_", toupper(substring(organism, 1,1)), substring(organism, 2), "_ENST_mapping.txt")
-  mapping_file_exon <- paste0(chiptype, "_", toupper(substring(organism, 1,1)), substring(organism, 2), "_ENSE_mapping.txt")
   
-  if (!file.exists(mapping_file_gene)){
-    file_download <- paste0("http://mbni.org/customcdf/", version, ".0.0/ensg.download/", chiptype, "_",
-                            toupper(substring(organism, 1,1)), substring(organism, 2), "_ENSG_", version, ".0.0.zip")
-    
-    download.file(file_download, "probe_information_file.zip")
-    unzip("probe_information_file.zip", mapping_file_gene)
-    unlink("probe_information_file.zip")
-    
-  }
-  
-  if (!file.exists(mapping_file_transcript)){
-    file_download <- paste0("http://mbni.org/customcdf/", version, ".0.0/enst.download/", chiptype, "_",
-                            toupper(substring(organism, 1,1)), substring(organism, 2), "_ENST_", version, ".0.0.zip")
-    
-    download.file(file_download, "probe_information_file.zip")
-    unzip("probe_information_file.zip", mapping_file_transcript)
-    unlink("probe_information_file.zip")
-    
-  }
-  
-  if (!file.exists(mapping_file_exon)){
-    file_download <- paste0("http://mbni.org/customcdf/", version, ".0.0/ense.download/", chiptype, "_",
-                            toupper(substring(organism, 1,1)), substring(organism, 2), "_ENSE_", version, ".0.0.zip")
-    
-    download.file(file_download, "probe_information_file.zip")
-    unzip("probe_information_file.zip", mapping_file_exon)
-    unlink("probe_information_file.zip")
-    
-  }
-  
-  
-  #Read mapping file
-  mapping_gene <- read.table(mapping_file_gene, sep = "\t", header = TRUE)
-  mapping_transcript <- read.table(mapping_file_transcript, sep = "\t", header = TRUE)
-  mapping_exon <- read.table(mapping_file_exon, sep = "\t", header = TRUE)
-  
+  ####################################################
+  #3) Make "nonsense" probeset
+  ####################################################
   
   #Combine mapping files
   mapping_total <- rbind(mapping_gene, mapping_transcript, mapping_exon)
@@ -1354,19 +1392,20 @@ MakeCDFfile <- function(chiptype, organism, version, transcript = TRUE, robust =
   mapping_total <- mapping_total[!duplicated(mapping_total$probe),]
   
   
-  if (transcript == FALSE) {
+  if (annotation == "ense") {
     #Ense
-    nonsense.probes <- anti_join(mapping_total, mapping_ense, by = c("probe" = "probe"))
-    nonsense.probes$Probe.Set.Name <- rep("nonsense", nrow(nonsense.probes))
-    
-    mapping <- rbind(mapping_ense, nonsense.probes)
-    
-    cdf = paste0(chiptype, "ense", "", version)
-    
-    
+    if (file.exists(paste(chiptype, organism, version, "ExonAnnotation.txt", sep = "_"))){
+      nonsense.probes <- anti_join(mapping_total, mapping_ense, by = c("probe" = "probe"))
+      nonsense.probes$Probe.Set.Name <- rep("nonsense", nrow(nonsense.probes))
+      
+      mapping <- rbind(mapping_ense, nonsense.probes)
+      
+      cdf = paste0(chiptype, "ense", "", version)
+      
+    }
   }
   
-  if (transcript == TRUE) {
+  if (annotation == "enst") {
     
     if (robust == FALSE) {
       #Enst_all
@@ -1376,7 +1415,6 @@ MakeCDFfile <- function(chiptype, organism, version, transcript = TRUE, robust =
       mapping <- rbind(mapping_enst_all, nonsense.probes)
       
       cdf = paste0(chiptype, "ense", "all", version)
-      
     }
     
     if (robust == TRUE){
@@ -1391,29 +1429,36 @@ MakeCDFfile <- function(chiptype, organism, version, transcript = TRUE, robust =
     
   }
   
-  final_all <- mapping[, c(5,6,1)]
-  colnames(final_all) <- c("X", "Y", "Group_ID")
-  final_all$Unit_ID <- final_all$Group_ID
-  final_all$Probe_ID <- seq(1:nrow(final_all))
-  final_all$Probe_Sequence <- mapping$probe
-  final_all <- final_all[, c("Probe_ID", "X", "Y", "Probe_Sequence", "Group_ID", "Unit_ID")]
   
-  write.table(final_all, file = paste(chiptype, organism, version, "final_all.txt", sep = "_"), col.names = TRUE, row.names = FALSE, quote = FALSE, sep = "\t")
   
-  if (chiptype == "hugene10st"){
-    rows = 1050
+  ####################################################
+  #4) Write CDF
+  ####################################################
+  
+  if (exists("cdf")){
+    final_all <- mapping[, c(5,6,1)]
+    colnames(final_all) <- c("X", "Y", "Group_ID")
+    final_all$Unit_ID <- final_all$Group_ID
+    final_all$Probe_ID <- seq(1:nrow(final_all))
+    final_all$Probe_Sequence <- mapping$probe
+    final_all <- final_all[, c("Probe_ID", "X", "Y", "Probe_Sequence", "Group_ID", "Unit_ID")]
+    
+    write.table(final_all, file = paste(chiptype, organism, version, "final_all.txt", sep = "_"), col.names = TRUE, row.names = FALSE, quote = FALSE, sep = "\t")
+    
+    if (chiptype == "hugene10st"){
+      rows = 1050
+    }
+    
+    
+    if (chiptype == "huex10st"){
+      rows = 2560
+    }
+    
+    flat2Cdf(file = paste(chiptype, organism, version, "final_all.txt", sep = "_"), 
+             chipType = cdf, 
+             rows = rows, 
+             cols = rows)
   }
-  
-  
-  if (chiptype == "huex10st"){
-    rows = 2560
-  }
-  
-  flat2Cdf(file = paste(chiptype, organism, version, "final_all.txt", sep = "_"), 
-           chipType = cdf, 
-           rows = rows, 
-           cols = rows)
-  
   
 }
 
