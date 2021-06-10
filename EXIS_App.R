@@ -9,8 +9,10 @@
 #####           ####        ####   ####         ######
 #####                                            #####
 #####################################################
-#       Isoform-specific expression analysis        #
 #####################################################
+#Isoform expression analysis
+
+
 #CREATED BY JARNO KOETSIER
 
 
@@ -708,8 +710,8 @@ server <- function(input, output, session){
     
     if (brainarray() == "exon") {
       
-      if (file.exists(paste(chiptype(), organism(), version(), "OfficialNewProbeSets2.txt", sep = "_"))) {
-        annotated <- read.table(file = paste(chiptype(), organism(), version(), "OfficialNewProbeSets2.txt", sep = "_"), header = TRUE)
+      if (file.exists(paste(chiptype(), organism(), version(), "ExonAnnotation.txt", sep = "_"))) {
+        annotated <- read.table(file = paste(chiptype(), organism(), version(), "ExonAnnotation.txt", sep = "_"), header = TRUE)
         
       }
       
@@ -765,7 +767,7 @@ server <- function(input, output, session){
     output$boxplot <- renderPlot({
       if(length(data1())>0){
         
-          par(mar=c(10,2,1,1))
+          par(mar=c(8,4,2,1))
           boxplot(data1(),which='pm', col = "red", names = samples(), las = 2, main = "Boxplot of raw data", ylab = "log intensity")
         
       }
@@ -776,7 +778,7 @@ server <- function(input, output, session){
     output$normboxplot <- renderPlot({
       if(length(data.expr())>0){
         withProgress(message = "Making quality plots.....", value = 0.6, {
-          par(mar=c(10,2,1,1))
+          par(mar=c(8,4,2,1))
           boxplot(data.expr(), col = "blue", names = samples(), las = 2, main = "Boxplot of normalized data", ylab = "log intensity")
         })
       }
@@ -786,7 +788,7 @@ server <- function(input, output, session){
     output$hist <- renderPlot({
       if(length(data())>0){
         
-          par(mar=c(10,2,1,1))
+          par(mar=c(5,4,2,1))
           hist(data1(),lwd=2,which='pm',ylab='Density',xlab='Log2 intensities',main='Density plot of raw data')
         
       }
@@ -797,7 +799,7 @@ server <- function(input, output, session){
     output$normhist <- renderPlot({
       if(length(data.expr())>0){
         
-          par(mar=c(10,2,1,1))
+          par(mar=c(5,4,2,1))
           plotDensity(data.expr(),lwd=2,ylab='Density',xlab='Log2 intensities',main='Density plot of normalized data')
         
       }
