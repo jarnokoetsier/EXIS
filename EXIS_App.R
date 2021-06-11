@@ -15,7 +15,7 @@
 
 #CREATED BY JARNO KOETSIER
 
-
+#EXIS 1.0.0 (June, 2021)
 
 ###############################################################################################################################
 
@@ -156,8 +156,8 @@ ui <- fluidPage(
                       sidebarPanel(
                         
                         selectInput(inputId = "brainarray",
-                                    label = "Probe set definition",
-                                    choices = c("Exon-specific probe sets" = "exon", "Transcript-specific probe sets" = "transcript"),
+                                    label = "Probeset definition",
+                                    choices = c("Exon-specific probesets" = "exon", "Transcript-specific probesets" = "transcript"),
                                     selected = "transcript"),
                         
                         uiOutput("robustout"),
@@ -501,7 +501,8 @@ server <- function(input, output, session){
       if (input$brainarray == "exon" | input$brainarray == "transcript") {
         selectInput(inputId = "chipin",
                     label = "Chiptype",
-                    choices = c("hugene10st", "huex10st"),
+                    choices = c("Human Gene 1.0 ST"= "hugene10st", 
+                                "Human Exon 1.0 ST"= "huex10st"),
                     selected = get_chiptype(gset()))
       }
     }
@@ -515,7 +516,8 @@ server <- function(input, output, session){
       if (input$brainarray == "exon" | input$brainarray == "transcript") {
         selectInput(inputId = "organismin",
                     label = "Organism",
-                    choices = "hs",
+                    choices = c("Homo sapiens" = "hs",
+                                "Mus musculus" = "mm"),
                     selected = get_organism(gset()))
       }
     }
@@ -542,7 +544,7 @@ server <- function(input, output, session){
       
       if (input$brainarray == "transcript"){
         awesomeCheckbox(inputId = "robustin",
-                        label = "Robust probe sets only",
+                        label = "Robust probesets only",
                         value = TRUE,
                         status = "success")
       }
@@ -768,7 +770,7 @@ server <- function(input, output, session){
       if(length(data1())>0){
         
           par(mar=c(8,4,2,1))
-          boxplot(data1(),which='pm', col = "red", names = samples(), las = 2, main = "Boxplot of raw data", ylab = "log intensity")
+          boxplot(data1(),which='pm', col = "red", names = samples(), las = 2, main = "Boxplot of raw data", ylab = "log2 intensity")
         
       }
     })
@@ -779,7 +781,7 @@ server <- function(input, output, session){
       if(length(data.expr())>0){
         withProgress(message = "Making quality plots.....", value = 0.6, {
           par(mar=c(8,4,2,1))
-          boxplot(data.expr(), col = "blue", names = samples(), las = 2, main = "Boxplot of normalized data", ylab = "log intensity")
+          boxplot(data.expr(), col = "blue", names = samples(), las = 2, main = "Boxplot of normalized data", ylab = "log2 intensity")
         })
       }
     })
@@ -789,7 +791,7 @@ server <- function(input, output, session){
       if(length(data())>0){
         
           par(mar=c(5,4,2,1))
-          hist(data1(),lwd=2,which='pm',ylab='Density',xlab='Log2 intensities',main='Density plot of raw data')
+          hist(data1(),lwd=2,which='pm',ylab='Density',xlab='log2 intensity',main='Density plot of raw data')
         
       }
       
@@ -800,7 +802,7 @@ server <- function(input, output, session){
       if(length(data.expr())>0){
         
           par(mar=c(5,4,2,1))
-          plotDensity(data.expr(),lwd=2,ylab='Density',xlab='Log2 intensities',main='Density plot of normalized data')
+          plotDensity(data.expr(),lwd=2,ylab='Density',xlab='log2 intensity',main='Density plot of normalized data')
         
       }
       
@@ -1165,7 +1167,7 @@ server <- function(input, output, session){
       if (length(mappingplot()) > 0){
         if (mappingplot() == TRUE){
           plot1 <- probemapping.enst(chiptype(), organism(), version(), genes())
-          return(ggplotly(plot1))
+          return(plot1)
           
         }
       }
@@ -1175,7 +1177,7 @@ server <- function(input, output, session){
       if (length(mappingplot()) > 0){
         if (mappingplot() == TRUE){
           plot1 <- probemapping.ense(chiptype(), organism(), version(), genes(), annotated())
-          return(ggplotly(plot1))
+          return(plot1)
           
         }
       }
@@ -1258,6 +1260,7 @@ server <- function(input, output, session){
     if (length(input$comparisonin1) > 0){
       
       plotdata <- select.top.table()[[table.choice1()]]
+      plotdata <- plotdata[!duplicated(plotdata[,1]),]
       
       
       if (p.choice() == "Raw P-value"){
@@ -1265,14 +1268,25 @@ server <- function(input, output, session){
         plotdata$color[plotdata$logFC < (-1 * logFC.threshold()) & plotdata$P.value <= p.threshold()] = "blue"
         plotdata$color[plotdata$logFC >= logFC.threshold() & plotdata$P.value <= p.threshold()] = "red"
         
-        Ensembl.ID = plotdata[,1]
         
-        volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(P.value), key = Ensembl.ID)) +
-          geom_point(color = plotdata$color) +
-          geom_hline(yintercept = -log10(p.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
-          geom_vline(xintercept = c(-1 *logFC.threshold(), logFC.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
-          ggtitle(table.choice1()) +
-          theme_light()
+        if (brainarray() == "transcript"){
+          volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(P.value), text = paste(" Gene:", Ensembl.gene.ID, "<br>","Transcript:", Ensembl.transcript.ID))) +
+            geom_point(color = plotdata$color) +
+            geom_hline(yintercept = -log10(p.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
+            geom_vline(xintercept = c(-1 *logFC.threshold(), logFC.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
+            ggtitle(table.choice1()) +
+            theme_light()
+        }
+        
+        if (brainarray() == "exon"){
+          volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(P.value), text = paste(" Gene:", Ensembl.gene.ID, "<br>","Exon:", Ensembl.exon.ID))) +
+            geom_point(color = plotdata$color) +
+            geom_hline(yintercept = -log10(p.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
+            geom_vline(xintercept = c(-1 *logFC.threshold(), logFC.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
+            ggtitle(table.choice1()) +
+            theme_light()
+        }
+      
       }
       
       
@@ -1281,14 +1295,25 @@ server <- function(input, output, session){
         plotdata$color[plotdata$logFC < (-1 * logFC.threshold()) & plotdata$FDR <= p.threshold()] = "blue"
         plotdata$color[plotdata$logFC >= logFC.threshold() & plotdata$FDR <= p.threshold()] = "red"
         
-        Ensembl.ID = plotdata[,1]
         
-        volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(FDR), key = Ensembl.ID)) +
-          geom_point(color = plotdata$color) +
-          geom_hline(yintercept = -log10(p.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
-          geom_vline(xintercept = c(-1 *logFC.threshold(), logFC.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
-          ggtitle(table.choice1()) +
-          theme_light()
+        if (brainarray() == "transcript"){
+          volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(FDR), text = paste(" Gene:", Ensembl.gene.ID, "<br>","Transcript:", Ensembl.transcript.ID))) +
+            geom_point(color = plotdata$color) +
+            geom_hline(yintercept = -log10(p.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
+            geom_vline(xintercept = c(-1 *logFC.threshold(), logFC.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
+            ggtitle(table.choice1()) +
+            theme_light()
+        }
+        
+        if (brainarray() == "exon"){
+          volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(FDR), text = paste(" Gene:", Ensembl.gene.ID, "<br>","Exon:", Ensembl.exon.ID))) +
+            geom_point(color = plotdata$color) +
+            geom_hline(yintercept = -log10(p.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
+            geom_vline(xintercept = c(-1 *logFC.threshold(), logFC.threshold()), color = "grey", linetype = "dotted", size = 0.5) +
+            ggtitle(table.choice1()) +
+            theme_light()
+        }
+        
       }
       
       
@@ -1308,15 +1333,18 @@ server <- function(input, output, session){
         voltable <- voldata %>%
           filter(P.value <= p.threshold()) %>%
           filter(abs(logFC) >= logFC.threshold())
+        
+        return(voltable)
       }
       
       if (p.choice() == "FDR"){
         voltable <- voldata %>%
           filter(FDR <= p.threshold()) %>%
           filter(abs(logFC) >= logFC.threshold())
+        
+        return(voltable)
       }
       
-      return(voltable)
       
     }
     
