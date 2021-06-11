@@ -15,7 +15,7 @@
 
 #CREATED BY JARNO KOETSIER
 
-
+#EXIS 1.0.0 (June, 2021)
 
 ###############################################################################################################################
 
@@ -1028,7 +1028,7 @@ makeBoxplots <- function(contrast, meta, data.expr, annotated, genes = NULL, tra
 
 ###################################################################################################################################
 
-makeBoxplots1 <- function(contrast, meta, data.expr, select.top.table) {
+makeBoxplots1 <- function(contrast, meta, data.expr, select.top.table, annotated = NULL) {
   #Get samples from contrasts
   contrast <- strsplit(contrast, split = " - ")
   contrast <- rev(contrast[[1]])
@@ -1046,9 +1046,22 @@ makeBoxplots1 <- function(contrast, meta, data.expr, select.top.table) {
   data.expr1 <- as.data.frame(data.expr1)
   data.expr1 <- cbind(rownames(data.expr1), data.expr1)
   rownames(data.expr1) <- NULL
-  colnames(data.expr1) <- c("Transcript", colnames(data.expr1)[-1])
-  data.expr1 <- inner_join(data.expr1, as.data.frame(select.top.table[[1]]$Ensembl.transcript.ID), by = c("Transcript" = "select.top.table[[1]]$Ensembl.transcript.ID"))
   
+  
+  if(ncol(select.top.table[[1]]) == 7){
+    colnames(data.expr1) <- c("Transcript", colnames(data.expr1)[-1])
+    data.expr1 <- inner_join(data.expr1, as.data.frame(select.top.table[[1]]$Ensembl.transcript.ID), by = c("Transcript" = "select.top.table[[1]]$Ensembl.transcript.ID"))
+  }
+  
+  if(ncol(select.top.table[[1]]) == 8){
+    colnames(data.expr1) <- c("Exon", colnames(data.expr1)[-1])
+    data.expr1 <- inner_join(data.expr1, annotated, by = c("Exon" = "Probe.set"))
+    data.expr1 <- inner_join(data.expr1, as.data.frame(unique(select.top.table[[1]]$Ensembl.exon.ID)), by = c("Exon.group" = "unique(select.top.table[[1]]$Ensembl.exon.ID)"))
+    data.expr1 <- data.expr1[,2:(ncol(data.expr1)-3)]
+    data.expr1 <- cbind(data.expr1[,ncol(data.expr1)], data.expr1[,1:(ncol(data.expr1)-1)])
+    colnames(data.expr1) <- c("Exon", colnames(data.expr1[,2:ncol(data.expr1)]))
+    data.expr1 <- data.expr1[!duplicated(data.expr1),]
+  }
   
   #arrange data in correct order for making the figures
   
@@ -1150,7 +1163,9 @@ probemapping.enst <- function(chiptype, organism, version, gene){
     xlab("Probes") +
     labs(fill = "Unique?")
   
-  return(gg)
+  interactive <- ggplotly(gg)
+  
+  return(interactive)
 }
 
 ###################################################################################################################################
@@ -1200,8 +1215,83 @@ probemapping.ense <- function(chiptype, organism, version, gene, annotated){
     xlab("Probes") +
     labs(fill = "Unique?")
   
-  return(gg)
+  interactive <- ggplotly(gg)
+  
+  return(interactive)
 }
+
+###################################################################################################################################
+
+#plotvolcano
+
+###################################################################################################################################
+
+plotvolcano <- function(select.top.table, contrast, p = "raw", p.threshold = 0.05, logFC.threshold = 1){
+  
+  
+  plotdata <- select.top.table[[contrast]]
+  plotdata <- plotdata[!duplicated(plotdata[,1]),]
+  
+  
+  if (p == "raw"){
+    plotdata$color[(plotdata$logFC < logFC.threshold & plotdata$logFC > (-1 * logFC.threshold)) | plotdata$P.value > p.threshold] = "darkgrey"
+    plotdata$color[plotdata$logFC < (-1 * logFC.threshold) & plotdata$P.value <= p.threshold] = "blue"
+    plotdata$color[plotdata$logFC >= logFC.threshold & plotdata$P.value <= p.threshold] = "red"
+    
+    
+    if (ncol(select.top.table[[contrast]]) == 7){
+      volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(P.value), text = paste(" Gene:", Ensembl.gene.ID, "<br>","Transcript:", Ensembl.transcript.ID))) +
+        geom_point(color = plotdata$color) +
+        geom_hline(yintercept = -log10(p.threshold, color = "grey", linetype = "dotted", size = 0.5)) +
+        geom_vline(xintercept = c(-1 *logFC.threshold, logFC.threshold), color = "grey", linetype = "dotted", size = 0.5) +
+        ggtitle(contrast) +
+        theme_light()
+    }
+    
+    if (ncol(select.top.table[[contrast]]) == 8){
+      volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(P.value), text = paste(" Gene:", Ensembl.gene.ID, "<br>","Exon:", Ensembl.exon.ID))) +
+        geom_point(color = plotdata$color) +
+        geom_hline(yintercept = -log10(p.threshold), color = "grey", linetype = "dotted", size = 0.5) +
+        geom_vline(xintercept = c(-1 *logFC.threshold, logFC.threshold), color = "grey", linetype = "dotted", size = 0.5) +
+        ggtitle(contrast) +
+        theme_light()
+    }
+    
+  }
+  
+  
+  if (p == "FDR"){
+    plotdata$color[(plotdata$logFC < logFC.threshold & plotdata$logFC > (-1 * logFC.threshold)) | plotdata$FDR > p.threshold] = "darkgrey"
+    plotdata$color[plotdata$logFC < (-1 * logFC.threshold) & plotdata$FDR <= p.threshold] = "blue"
+    plotdata$color[plotdata$logFC >= logFC.threshold & plotdata$FDR <= p.threshold] = "red"
+    
+    
+    if (ncol(select.top.table[[contrast]]) == 7){
+      volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(FDR), text = paste(" Gene:", Ensembl.gene.ID, "<br>","Transcript:", Ensembl.transcript.ID))) +
+        geom_point(color = plotdata$color) +
+        geom_hline(yintercept = -log10(p.threshold), color = "grey", linetype = "dotted", size = 0.5) +
+        geom_vline(xintercept = c(-1 *logFC.threshold, logFC.threshold), color = "grey", linetype = "dotted", size = 0.5) +
+        ggtitle(contrast) +
+        theme_light()
+    }
+    
+    if (ncol(select.top.table[[contrast]]) == 8){
+      volcano <- ggplot(plotdata, aes(x = logFC, y = -log10(FDR), text = paste(" Gene:", Ensembl.gene.ID, "<br>","Exon:", Ensembl.exon.ID))) +
+        geom_point(color = plotdata$color) +
+        geom_hline(yintercept = -log10(p.threshold), color = "grey", linetype = "dotted", size = 0.5) +
+        geom_vline(xintercept = c(-1 *logFC.threshold, logFC.threshold), color = "grey", linetype = "dotted", size = 0.5) +
+        ggtitle(contrast) +
+        theme_light()
+    }
+    
+  }
+  
+  
+  return(ggplotly(volcano))
+  
+  
+}
+
 
 ###################################################################################################################################
 
