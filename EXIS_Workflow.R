@@ -15,6 +15,8 @@
 
 #CREATED BY JARNO KOETSIER
 
+#EXIS 1.0.0 (June, 2021)
+
 ###############################################################################################################################
 
 #INSTRUCTIONS WORKFLOW SCRIPT
@@ -36,12 +38,14 @@
 ################################################################################################################################
 #get GEO
 ################################################################################################################################
+#In this step, the dataset is loaded from the Gene Expression Omnibus (GEO)
 
 
 
 #Enter GEO accession number
+#You can run the code with "GSE36980" for an example analysis.
 GEO = "GSE36980"
-GEO = "GSE37264"
+
 
 #Download data set from GEO
 gset <- getGEO(GEO, GSEMatrix =TRUE, getGPL = FALSE)
@@ -52,20 +56,27 @@ gset <- getGEO(GEO, GSEMatrix =TRUE, getGPL = FALSE)
 ################################################################################################################################
 #get meta
 ################################################################################################################################
+#In this step, the grouping variable is selected from the meta data.
+#This grouping variable is later used in the differentially expression analysis.
 
 
 
 #Get grouping variables from the data set
 groups <- get_grouping(gset)
 
+
 #Select grouping variable
+#auto-group automatically selects the relevant grouping variable.
+#However, you can also select your grouping variable manually instead.
 groupingvar <- groups[,auto_group(gset)]
+
 
 #NOTE: You can also select a pairing variable in case of a dependent study design.
 
-#Make meta table
-meta <- get_meta(gset = gset, grouping_column = groupingvar, pairing_column = NULL)
 
+#Make meta table
+#This table indicates to which group each sample belongs.
+meta <- get_meta(gset = gset, grouping_column = groupingvar, pairing_column = NULL)
 
 
 
@@ -73,24 +84,44 @@ meta <- get_meta(gset = gset, grouping_column = groupingvar, pairing_column = NU
 #get data
 ################################################################################################################################
 
-#Get chiptype
+
+
+#GET CHIPTYPE
+
+#The get_chiptype function automatically searches for this chiptype in the dataset.
+#You can also select the chipytpe manually.
+#IMPORTANT: the chiptype should be written without capitals, spaces, dots, comma's, etc.
+#e.g. "hugene10st" or "huex10st"
 chiptype = get_chiptype(gset)
 
-#Get organism
+
+#GET ORGANISM
+
+#The get_organism function automatically searches for the organism in the dataset.
+#You can also select the organism manually.
+#IMPORTANT: the organism should be written in a two-letter code with lowercase letters only.
+#e.g. "hs" or "mm"
 organism = get_organism(gset)
 
-#NOTE: manual chiptype and/or organism selection is also possible.
 
-#Get Brainarray version
+#GET BRAINARRAY VERSION
+
+#Currently, 25 is the latest version.
 version = 25
 
-#Annotation: 
-#  "ense" for exon-specific probe sets
-#  "enst" for transcript-specific probe sets
+
+#GET PROBESET ANNOTATION
+
+#  "ense" for exon-specific probsets
+#  "enst" for transcript-specific probesets
 annotation = "ense"
 
 
-#Make affyBatch
+#MAKE AFFYBATCH
+
+#The readcels function requires the CDF to be in the working directory 
+#unless the CDF has been installed as a package previously
+
 data1 <- readcels(gset = gset, 
                   chiptype = chiptype, 
                   organism = organism, 
@@ -99,47 +130,49 @@ data1 <- readcels(gset = gset,
                   robust = FALSE,
                   outliers = "GSM4764672")
 
-data1 <- readcels(gset = gset, 
-                  chiptype = chiptype, 
-                  organism = organism, 
-                  version = version,
-                  annotation = annotation,
-                  robust = FALSE,
-                  outliers = NULL)
 
 
 ################################################################################################################################
 #Normalization
 ################################################################################################################################
 
+
+
 #Perform RMA normalization
 data.rma <- affy::rma(data1, normalize = TRUE, background = TRUE)
+
 
 #Retrieve probe set expression
 data.expr <- exprs(data.rma)
 
-#Remove the "nonsense" probe set. This probe set is only included for normalization purposes.
+
+#Remove the "nonsense" probeset. 
+#This probeset is only included for normalization purposes.
 data.expr <- data.expr[rownames(data.expr) != "nonsense",]
+
 
 
 ################################################################################################################################
 #Quality control
 ################################################################################################################################
 
-#Boxplots
+
+
+#BOXPLOTS OF LOG2 INTENSITIES
 
 ##Raw data
 par(mar=c(8,4,2,1))
 boxplot(data1,which='pm', col = "red", las = 2, main = "Boxplot of raw data", ylab = "log2 intensity")
 
+
 ##Normalized data
-par(mar=c(10,2,1,1))
+par(mar=c(8,4,2,1))
 boxplot(data.expr, col = "blue", las = 2, main = "Boxplot of normalized data", ylab = "log2 intensity")
 
 
 
 
-#Density plots
+#DENSITY PLOTS OF LOG2 INTENSITIES
 
 ##Raw data
 par(mar=c(5,4,2,1))
@@ -152,14 +185,14 @@ plotDensity(data.expr,lwd=2,ylab='Density',xlab='log2 intensity',main='Density p
 
 
 
-#PCA plot
-data.PC <- prcomp(t(data.expr,scale.=TRUE))
+#PCA PLOT
+
+data.PC <- prcomp(t(data.expr),scale.=TRUE)
 
 pca.plot(data.PC = data.PC,
          meta = meta,
-         hpc = 1,           #horizontal axis (1 = PC1 on horizontal axis, 2 = PC2 on horizontal axis, etc.)
-         vpc = 2)           #vertical exis (2 = PC2 on vertical axis, 3 = PC3 on vertical axis, etc.)
-
+         hpc = 1,            #horizontal axis (1 = PC1 on horizontal axis, 2 = PC2 on horizontal axis, etc.)
+         vpc = 2)            #vertical axis (2 = PC2 on vertical axis, 3 = PC3 on vertical axis, etc.)
 
 
 
@@ -167,10 +200,16 @@ pca.plot(data.PC = data.PC,
 #Differential expression analysis
 ################################################################################################################################
 
-#Get comparisons
+
+
+#GET COMPARISONS
+
+#Get comparisons for the differential expression analysis
+#The get_contrast function retrieves all possible comparisons that are possible according to the meta table.
 comparisons <- get_contrasts(meta)
 
-#NOTE: the get_contrast function retrieves all possible comparisons that are possible according to the meta table.
+
+#GET TOP TABLE
 
 #Make top table using the meta data
 #This function performs DE analysis for all possible comparisons and returns a list object.
@@ -180,36 +219,32 @@ top.table <- diff_expr(data.expr = data.expr,
 
 
 
-
-
-#IF YOU WANT TO USE THE EXON-SPECIFIC PROBESET DEFINITION:
+################################################################################################################################
+#SELECT AND ANNOTATE THE EXON-SPECIFIC PROBESETS
 #IMPORTANT: you can only use run these codes if you used the "ense" annotation in the readcels function
 
-################################################################################################################################
 
 #Get annotation file from the working directory
-annotated <- read.table(file = paste(chiptype, organism, version, "ExonAnnotation.txt", sep = "_"), header = TRUE)
+exonannotation <- read.table(file = paste(chiptype, organism, version, "ExonAnnotation.txt", sep = "_"), header = TRUE)
 
 
 #Select exons of interest AND annotate the exons with their corresponding transcript(s) and gene
 select.top.table <- exon_selection(top.table = top.table, 
-                                   annotated = annotated,
+                                   annotated = exonannotation,
                                    genes = c("ENSG00000065989", 
                                              "ENSG00000184588", 
                                              "ENSG00000105650",
                                              "ENSG00000113448"),
                                    transcripts = NULL,
-                                   genome_wide = FALSE,
+                                   genome_wide = TRUE,
                                    unique_exons = FALSE)
   
 
 
-
-
-#IF YOU WANT TO USE THE TRANSCRIPT-SPECIFIC PROBESET DEFINITION:
+################################################################################################################################
+#SELECT AND ANNOTATE THE TRANSCRIPT-SPECIFIC PROBESETS
 #IMPORTANT: you can only use run these codes if you used the "enst" annotation in the readcels function
 
-################################################################################################################################
 
 #Select transcripts of interest AND annotate the transcripts with their corresponding gene
 select.top.table <- transcript_selection(top.table = top.table,
@@ -222,73 +257,53 @@ select.top.table <- transcript_selection(top.table = top.table,
 
 
 
-
-
-
 ################################################################################################################################
 #Output plots
 ################################################################################################################################
 
 
-#Boxplots
 
-makeBoxplots(contrast = comparisons[1],
-             meta = meta,
-             data.expr = data.expr,
-             annotated = annotated,
-             genes = "ENSG00000113448",
-             transcripts = NULL,
-             exons = NULL,
-             unique_exons = FALSE, 
-             genome_wide = FALSE)
-             
-             
-makeBoxplots1(contrast = comparisons[1],
+#BOXPLOTS
+
+#IMPORTANT: this function is not suitable for genome-wide analyses
+#Thus, only run this function if you selected a hand-full of transcripts/exons in the select.top.table.
+makeBoxplots1(contrast = comparisons[7],
               meta = meta,
               data.expr = data.expr,
-              select.top.table = select.top.table)
+              select.top.table = select.top.table,
+              annotated = exonannotation)                    #In case of exon-specific probesets:
+                                                   #annotated = exonannotation
            
 
 
+#PROBE MAPPING PLOT
 
+#These plots show the probes included in each transcript/exon-specific probesets
+#These plots can not be used in genome-wide analyses
 
-#Probe mapping plot
-
-#Transcript
-probemapping <- probemapping.enst(chiptype = chiptype, 
-                                  organism = organism,
-                                  version = version, 
-                                  gene = "ENSG00000113448")
-ggplotly(probemapping)
-
-
-#Exon
-probemapping <- probemapping.ense(chiptype = chiptype, 
-                                  organism = organism,
-                                  version = version, 
-                                  gene = "ENSG00000113448",
-                                  annotated = annotated)
-ggplotly(probemapping)
+#Transcript-specific probe sets
+probemapping.enst(chiptype = chiptype, 
+                  organism = organism,
+                  version = version, 
+                  gene = "ENSG00000113448")
 
 
 
-test <- select.top.table[[7]][,1:3]
-PDE4A <- test[test$Ensembl.gene.ID == "ENSG00000065989",]
-PDE4B <- test[test$Ensembl.gene.ID == "ENSG00000184588",]
-PDE4C <- test[test$Ensembl.gene.ID == "ENSG00000105650",]
-PDE4D <- test[test$Ensembl.gene.ID == "ENSG00000113448",]
-test1 <- rbind(PDE4A, PDE4B, PDE4C, PDE4D)
-
-
-final$Transcripts <- factor(final$Transcripts, levels = test1$Ensembl.transcript.ID)
-final$Exons <- factor(final$Exons, levels = unique(test1$Ensembl.exon.ID))
+#Exon-specific probe sets
+probemapping.ense(chiptype = chiptype, 
+                  organism = organism,
+                  version = version, 
+                  gene = "ENSG00000113448",
+                  annotated = exonannotation)
 
 
 
+#VOLCANO PLOT
 
-library(writexl)
-write_xlsx(select.top.table[[7]], "hippocampus.xlsx")
-write_xlsx(select.top.table[[1]], "frontalcortex.xlsx")
-write_xlsx(select.top.table[[14]], "temporalcortex.xlsx")
+plotvolcano(select.top.table = select.top.table, 
+            contrast = comparisons[1], 
+            p = "raw",                           #choose from "raw" or "FDR"
+            p.threshold = 0.05,
+            logFC.threshold = 1)                            
+  
 
-write_xlsx(select.top.table[[1]], "temporalcortex.xlsx")
