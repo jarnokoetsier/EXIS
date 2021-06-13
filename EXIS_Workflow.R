@@ -271,7 +271,7 @@ makeBoxplots1(contrast = comparisons[7],
               meta = meta,
               data.expr = data.expr,
               select.top.table = select.top.table,
-              annotated = exonannotation)                    #In case of exon-specific probesets:
+              annotated = NULL)                    #In case of exon-specific probesets:
                                                    #annotated = exonannotation
            
 
