@@ -7,16 +7,16 @@ This workflow is suitable for the analysis of both GEO and non-GEO microarray da
 The current version only supports the analysis of the Human Exon 1.0 ST array and the Human Gene 1.0. ST array.
 
 ## Instructions
-1) Before using the app or workflow, source run the global R script (EXIS_Global.R).
+1) Before using the app or workflow, source run the global R script (``EXIS_Global.R``).
 
-IMPORTANT: The current analysis depends on the modified affy package from Brainarray.
+**IMPORTANT**: The current analysis depends on the modified affy package from Brainarray.
 If you have installed the original affy package previously, please remove this package from your package library before source running the global R script.
 
 2) Make sure that the exon/transcript-specific CDF is in your working directory or has been installed as a CDF package previously.
 Furthermore, when you would like to use the exon-specific probeset definition, also make sure to place the exon annotation file in your working directory.
 
-3) If you would like to use the EXIS app, run the app R script (EXIS_App.R). If you open this script in RStudio, you can simply press "Run App" in the top-right corner (see image below). 
-If you prefer using the functions outside the R shiny environment, you can use the workflow R script (EXIS_Workflow.R) to guide you through the analysis.
+3) If you would like to use the EXIS app, run the app R script (``EXIS_App.R``). If you open this script in RStudio, you can simply press "Run App" in the top-right corner (see image below). 
+If you prefer using the functions outside the R shiny environment, you can use the workflow R script (``EXIS_Workflow.R``) to guide you through the analysis.
 
 
 ![image](https://user-images.githubusercontent.com/79576459/122049236-7c800600-cde2-11eb-88a7-88929216ff8b.png)
