@@ -15,7 +15,8 @@ If you have installed the original affy package previously, please remove this p
 2) Make sure that the exon/transcript-specific CDF is in your working directory or has been installed as a CDF package previously.
 Furthermore, when you would like to use the exon-specific probeset definition, also make sure to place the exon annotation file in your working directory.
 
-3) If you would like to use the EXIS app, run the app R script (EXIS_App.R). If you open this script in RStudio, you can simply press "Run App" in the top-right corner (see imgage below). 
+3) If you would like to use the EXIS app, run the app R script (EXIS_App.R). If you open this script in RStudio, you can simply press "Run App" in the top-right corner (see image below). 
 If you prefer using the functions outside the R shiny environment, you can use the workflow R script (EXIS_Workflow.R) to guide you through the analysis.
+
 
 ![image](https://user-images.githubusercontent.com/79576459/122049236-7c800600-cde2-11eb-88a7-88929216ff8b.png)
