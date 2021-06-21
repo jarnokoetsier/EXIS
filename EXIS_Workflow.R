@@ -36,9 +36,8 @@
 
 
 ################################################################################################################################
-#get GEO
+#get database accession
 ################################################################################################################################
-#In this step, the dataset is loaded from the Gene Expression Omnibus (GEO)
 
 
 
@@ -54,6 +53,7 @@ accession = "GSE36980"
 ################################################################################################################################
 #In this step, the grouping variable is selected from the metadata.
 #This grouping variable is later used in the differentially expression analysis.
+
 
 
 #ACCESS DATA
