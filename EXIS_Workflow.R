@@ -42,41 +42,48 @@
 
 
 
-#Enter GEO accession number
-#You can run the code with "GSE36980" for an example analysis.
-GEO = "GSE36980"
-
-
-#Download data set from GEO
-gset <- getGEO(GEO, GSEMatrix =TRUE, getGPL = FALSE)
-
+#Enter GEO or ArrayExpress accession number
+#You can run the code with "GSE36980" (GEO dataset) for an example analysis.
+database = "GEO"        #choose "GEO" or "ArrayExpress"
+accession = "GSE36980"
 
 
 
 ################################################################################################################################
 #get meta
 ################################################################################################################################
-#In this step, the grouping variable is selected from the meta data.
+#In this step, the grouping variable is selected from the metadata.
 #This grouping variable is later used in the differentially expression analysis.
 
 
+#ACCESS DATA
 
-#Get grouping variables from the data set
-groups <- get_grouping(gset)
+##Only run if dataset is from GEO
+gset <- getGEO(accession, GSEMatrix =TRUE, getGPL = FALSE)
+
+##Only run if dataset is from ArrayExpress
+gset <- ArrayExpress(accession)
 
 
-#Select grouping variable
-#auto-group automatically selects the relevant grouping variable.
+#GET METADATA
+groups <- get_grouping(gset, database = database)
+
+
+#SELECT GROUPING VARIABLE
+#auto-group() automatically selects the relevant grouping variable.
 #However, you can also select your grouping variable manually instead.
-groupingvar <- groups[,auto_group(gset)]
+selected_group <- auto_group(groups)
 
+groupingvar <- groups[,selected_group]
 
-#NOTE: You can also select a pairing variable in case of a dependent study design.
 
 
 #Make meta table
 #This table indicates to which group each sample belongs.
-meta <- get_meta(gset = gset, grouping_column = groupingvar, pairing_column = NULL)
+meta <- get_meta(gset = gset, 
+                 grouping_column = groupingvar, 
+                 pairing_column = NULL, 
+                 database = database)
 
 
 
@@ -92,7 +99,7 @@ meta <- get_meta(gset = gset, grouping_column = groupingvar, pairing_column = NU
 #You can also select the chipytpe manually.
 #IMPORTANT: the chiptype should be written without capitals, spaces, dots, comma's, etc.
 #e.g. "hugene10st" or "huex10st"
-chiptype = get_chiptype(gset)
+chiptype = get_chiptype(gset, database = database)
 
 
 #GET ORGANISM
@@ -101,7 +108,7 @@ chiptype = get_chiptype(gset)
 #You can also select the organism manually.
 #IMPORTANT: the organism should be written in a two-letter code with lowercase letters only.
 #e.g. "hs" or "mm"
-organism = get_organism(gset)
+organism = get_organism(gset, database = database)
 
 
 #GET BRAINARRAY VERSION
@@ -114,21 +121,22 @@ version = 25
 
 #  "ense" for exon-specific probsets
 #  "enst" for transcript-specific probesets
-annotation = "ense"
+annotation = "enst"
 
 
 #MAKE AFFYBATCH
 
-#The readcels function requires the CDF to be in the working directory 
+#The readcels1 function requires the CDF to be in the working directory 
 #unless the CDF has been installed as a package previously
 
-data1 <- readcels(gset = gset, 
-                  chiptype = chiptype, 
-                  organism = organism, 
-                  version = version,
-                  annotation = annotation,
-                  robust = FALSE,
-                  outliers = "GSM4764672")
+data1 <- readcels1(accession = accession,
+                   database = database,
+                   chiptype = chiptype, 
+                   organism = organism, 
+                   version = version,
+                   annotation = annotation,
+                   robust = FALSE,
+                   outliers = "GSM4764672")
 
 
 
