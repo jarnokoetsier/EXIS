@@ -65,6 +65,7 @@ s_requiredpackages =
   c(
     "biomaRt",
     "GEOquery",
+    "ArrayExpress",
     "limma"
   )
 
@@ -100,6 +101,7 @@ if(!("makecdfenv" %in% pkg)){
 #Load packages
 library(affy)
 library(GEOquery)
+library(ArrayExpress)
 library(biomaRt)
 library(limma)
 library(fuzzyjoin)
@@ -114,22 +116,47 @@ library(makecdfenv)
 
 ###################################################################################################################################
 
-get_grouping <- function(gset) {
+get_grouping <- function(gset, database = "GEO") {
   
-  GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
-  
-  grouping <- as.data.frame(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)[1]
-  
-  for (l in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)){
-    if (((length(unique(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]]))) > 1) & 
-        ((length(unique(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]]))) < length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]]))){
+  if (database == "GEO"){
+    GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
+    
+    grouping <- as.data.frame(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)[1]
+    
+    for (l in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)){
+      if (((length(unique(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]]))) > 1) & 
+          ((length(unique(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]]))) < length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]]))){
+        
+        grouping <- cbind(grouping, as.data.frame(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)[l])
+      }
       
-      grouping <- cbind(grouping, as.data.frame(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)[l])
     }
     
+    grouping <- as.data.frame(grouping[,-1])
+    
+    grouping <- grouping %>%
+      mutate(across(everything(), as.character))
   }
   
-  grouping <- as.data.frame(grouping[,-1])
+  if (database == "ArrayExpress"){
+    
+    grouping <- as.data.frame(gset@phenoData@data)[1]
+    
+    for (l in 1:length(gset@phenoData@data)){
+      if (((length(unique(gset@phenoData@data[[l]]))) > 1) & 
+          ((length(unique(gset@phenoData@data[[l]]))) < length(gset@phenoData@data[[l]]))){
+        
+        grouping <- cbind(grouping, as.data.frame(gset@phenoData@data)[l])
+      }
+      
+    }
+    
+    grouping <- as.data.frame(grouping[,-1])
+    
+    grouping <- grouping %>%
+      mutate(across(everything(), as.character))
+  }
+  
   
   #remove columns with the same information
   uni = c(1)
@@ -145,7 +172,9 @@ get_grouping <- function(gset) {
         }
         if (all(str_detect(grouping[,j], grouping[,i]))) {
           if (length(unique(str_remove(grouping[,j], grouping[,i]))) == 1) {
-            uni <- c(uni, j)
+            if (length(unique(str_remove(grouping[,i], grouping[,j]))) != 1){
+              uni <- c(uni, j)
+            }
           }
         }
       }
@@ -167,20 +196,17 @@ get_grouping <- function(gset) {
 
 ###################################################################################################################################
 
-auto_group <- function(gset, attempt = 1){
+auto_group <- function(groups, attempt = 1){
   
-  GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
-  
-  participants <- gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[["geo_accession"]]
   
   participant_group <- NULL
   
   n_ch <- c(100,100)
-  for (l in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)){
-    if ((length(grep("control|non|healthy|treat", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]], ignore.case = TRUE)) > 0) &
-        (length(unique(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]]))) < length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]])){
+  for (l in 1:length(groups)){
+    if ((length(grep("control|non|healthy|treat", groups[[l]], ignore.case = TRUE)) > 0) &
+        (length(unique(groups[[l]]))) < length(groups[[l]])){
       
-      n_ch <- rbind(n_ch, c(l,nchar(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]][1])))
+      n_ch <- rbind(n_ch, c(l,nchar(groups[[l]][1])))
     }
   }
   
@@ -196,7 +222,7 @@ auto_group <- function(gset, attempt = 1){
     }
     
     int1 <- n_ch[which.min(n_ch[,2]),1]
-    participant_group <- as.data.frame(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)[int1]
+    participant_group <- as.data.frame(groups)[int1]
     print(noquote("Grouping has been done automatically by default. Please check whether grouping has occured correctly."))
     
   }
@@ -216,50 +242,27 @@ auto_group <- function(gset, attempt = 1){
 ###################################################################################################################################
 
 
-get_meta <- function(gset, attempt = 1, grouping_column = NULL, pairing_column = NULL, file_name = NULL) {
+get_meta <- function(gset, grouping_column, pairing_column = NULL, file_name = NULL, database = "GEO") {
   
-  GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
+  #Get participant info
   
-  participants <- gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[["geo_accession"]]
-  
-  
-  #automatic selection
-  if (is.null(grouping_column)){
+  if(database == "GEO"){
+    GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
     
-    n_ch <- c(100,100)
-    for (l in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)){
-      if ((length(grep("control|non|healthy|treat", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]], ignore.case = TRUE)) > 0) &
-          (length(unique(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]]))) < length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]])){
-        
-        n_ch <- rbind(n_ch, c(l,nchar(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[l]][1])))
-      }
-    }
+    participants <- gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[["geo_accession"]]
     
-    if (attempt < nrow(n_ch)) {
-      y = 1
-      repeat {
-        
-        if (y == attempt) {
-          break
-        }
-        y = y + 1
-        n_ch = n_ch[-which.min(n_ch[,2]),]
-      }
-      
-      int1 <- n_ch[which.min(n_ch[,2]),1]
-      participant_group <- gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[int1]]
-      print(noquote("Grouping has been done automatically by default. Please check whether grouping has occured correctly."))
-      
-    }
+  }
+  
+  if(database == "ArrayExpress"){
     
-    if (attempt >= nrow(n_ch)) {
-      print(noquote("grouping information not found. Upload grouping data manually at grouping_column"))
-    }
+    participants <- rownames(gset@phenoData@data)
+
+    
   }
   
   
   #use grouping column
-  if (!is.null(grouping_column)){
+  if (length(grouping_column[1]) > 0){
     if (!is.vector(grouping_column)){
       if (ncol(grouping_column) > 1) {
         participant_group <- unite(grouping_column, col = grouping_column, sep = ".")
@@ -274,7 +277,7 @@ get_meta <- function(gset, attempt = 1, grouping_column = NULL, pairing_column =
     
   }
   
-  
+ 
   
   #independ samples
   if (is.null(pairing_column) | length(pairing_column) < 1) {
@@ -325,38 +328,40 @@ get_meta <- function(gset, attempt = 1, grouping_column = NULL, pairing_column =
 
 ###################################################################################################################################
 
-get_chiptype <- function(gset){
-  GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
+get_chiptype <- function(gset, database = "GEO"){
+  
+  if (database == "GEO"){
+    GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
+    info <- gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data
+  }
+  
+  if (database == "ArrayExpress"){
+    info <- gset@phenoData@data
+  }
+  
   
   chiptype = "unknown"
   organism = "unknown"
   
-  for (j in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)) {
-    if (length(grep("huex", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[j]], ignore.case = TRUE)) > 0) {
+  for (j in 1:length(info)) {
+    if (length(grep("huex|A-AFFY-143", info[[j]], ignore.case = TRUE)) > 0) {
       chiptype = "huex10st"
       organism = "hs"
     }
   }
   
   
-  for (j in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)) {
-    if (length(grep("hugene-1_0 | human gene 1.0", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[j]], ignore.case = TRUE)) > 0) {
+  for (j in 1:length(info)) {
+    if (length(grep("hugene-1_0|human gene 1.0|A-AFFY-141", info[[j]], ignore.case = TRUE)) > 0) {
       chiptype = "hugene10st"
       organism = "hs"
     }
   }
   
   
-  for (j in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)) {
-    if (length(grep("hugene-2_0 | human gene 2.0", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[j]], ignore.case = TRUE)) > 0) {
+  for (j in 1:length(info)) {
+    if (length(grep("hugene-2_0|human gene 2.0", info[[j]], ignore.case = TRUE)) > 0) {
       chiptype = "hugene20st"
-      organism = "hs"
-    }
-  }
-  
-  for (j in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)) {
-    if (length(grep("HG-U133_Plus_2 | Human Genome U133 Plus 2.0", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[j]], ignore.case = TRUE)) > 0) {
-      chiptype = "hgu133plus2"
       organism = "hs"
     }
   }
@@ -384,38 +389,40 @@ get_chiptype <- function(gset){
 
 ###################################################################################################################################
 
-get_organism <- function(gset){
-  GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
+get_organism <- function(gset, database = "GEO"){
+  
+  if (database == "GEO"){
+    GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
+    info <- gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data
+  }
+  
+  if (database == "ArrayExpress"){
+    info <- gset@phenoData@data
+  }
+  
   
   chiptype = "unknown"
   organism = "unknown"
   
-  for (j in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)) {
-    if (length(grep("huex", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[j]], ignore.case = TRUE)) > 0) {
+  for (j in 1:length(info)) {
+    if (length(grep("huex|A-AFFY-143", info[[j]], ignore.case = TRUE)) > 0) {
       chiptype = "huex10st"
       organism = "hs"
     }
   }
   
   
-  for (j in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)) {
-    if (length(grep("hugene-1_0 | human gene 1.0", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[j]], ignore.case = TRUE)) > 0) {
+  for (j in 1:length(info)) {
+    if (length(grep("hugene-1_0|human gene 1.0|A-AFFY-141", info[[j]], ignore.case = TRUE)) > 0) {
       chiptype = "hugene10st"
       organism = "hs"
     }
   }
   
   
-  for (j in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)) {
-    if (length(grep("hugene-2_0 | human gene 2.0", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[j]], ignore.case = TRUE)) > 0) {
+  for (j in 1:length(info)) {
+    if (length(grep("hugene-2_0|human gene 2.0", info[[j]], ignore.case = TRUE)) > 0) {
       chiptype = "hugene20st"
-      organism = "hs"
-    }
-  }
-  
-  for (j in 1:length(gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data)) {
-    if (length(grep("HG-U133_Plus_2 | Human Genome U133 Plus 2.0", gset[[paste0(GEO_accession,"_series_matrix.txt.gz")]]@phenoData@data[[j]], ignore.case = TRUE)) > 0) {
-      chiptype = "hgu133plus2"
       organism = "hs"
     }
   }
@@ -438,31 +445,139 @@ get_organism <- function(gset){
 
 ###################################################################################################################################
 
-#readcels
+#readcels1
 
 ###################################################################################################################################
 
-readcels <- function(gset, chiptype, organism , version = 25, annotation = "enst", robust = TRUE, outliers = NULL) {
+readcels1 <- function(accession, database = "GEO", chiptype, organism , version = 25, annotation = "enst", robust = TRUE, outliers = NULL) {
   
   pkg <- installed.packages()[, "Package"]
-  GEO_accession <- str_remove(names(gset), "_series_matrix.txt.gz")
-  exdir = paste0("data_", GEO_accession)
   
-  #Download data
-  if (!file.exists(exdir)){
+  if (database == "GEO"){
+    exdir = paste0("data_", accession)
     
-    getGEOSuppFiles(GEO_accession)
-    tarfile = paste0(GEO_accession, "/", GEO_accession, "_RAW.tar")
-    untar(tarfile, exdir = exdir)
+    #Download data
+    if (!file.exists(exdir)){
+      
+      getGEOSuppFiles(GEO_accession)
+      tarfile = paste0(GEO_accession, "/", GEO_accession, "_RAW.tar")
+      untar(tarfile, exdir = exdir)
+      
+      tarfile = paste0(wd, "/", GEO_accession, "/", GEO_accession, "_RAW.tar")
+      
+      untar(tarfile, exdir = exdir)
+      
+    }
     
-    tarfile = paste0(wd, "/", GEO_accession, "/", GEO_accession, "_RAW.tar")
+    #Get CEL files
+    celfiles = list.files(paste0(exdir, "/"), pattern = "CEL", full.names = TRUE)
     
-    untar(tarfile, exdir = exdir)
+    if (!is.null(outliers)){
+      
+      outliers_select <- outliers[1]
+      
+      if (length(outliers) > 1){
+        for (i in 1:(length(outliers)-1)){
+          outliers_select <- paste(outliers_select, outliers[1+i], sep = "|")
+        }
+        
+      }
+      
+      celfiles = celfiles[-grep(outliers_select, celfiles)]
+    }
     
   }
   
+  if (database == "ArrayExpress"){
+    getAE(accession, type = "raw")
+    
+    celfiles = list.files(pattern = "CEL", full.names = TRUE)
+    
+    if (!is.null(outliers)){
+      
+      outliers_select <- outliers[1]
+      
+      if (length(outliers) > 1){
+        for (i in 1:(length(outliers)-1)){
+          outliers_select <- paste(outliers_select, outliers[1+i], sep = "|")
+        }
+        
+      }
+      
+      celfiles = celfiles[-grep(outliers_select, celfiles)]
+    }
+    
+  }
+  
+  #Get CDF 
+  
+  if (annotation == "ense") {
+    cdf <- paste0(chiptype,"ense", version, "cdf")
+    
+  }
+  
+  if (annotation == "enst") {
+    if (robust == TRUE){
+      cdf <- paste0(chiptype, "enst", "robust", version, "cdf")
+    }
+    if (robust == FALSE){
+      cdf <- paste0(chiptype, "enst", "all", version, "cdf")
+    }
+  }
+  
+  
+  if(!(cdf %in% pkg)) {
+    
+    if (annotation == "ense") {
+      cdf.file = paste0(chiptype, "ense", version)
+    }
+    
+    if (annotation == "enst") {
+      
+      if (robust == FALSE) {
+        cdf.file = paste0(chiptype, "enst", "all", version)
+      }
+      
+      if (robust == TRUE) {
+        cdf.file = paste0(chiptype, "enst", "robust", version)
+      }
+      
+    }
+    
+    
+    if (exists(cdf.file)) {
+      make.cdf.package(paste0(cdf.file, ".cdf"), species = "Homo_sapiens")
+      install.packages(paste0(cdf.file, "cdf/"), repos = NULL, type = "source")
+      
+    }
+    
+    if (!exists(cdf.file)) {
+      print("Could not find correct CDF package or file. Please use the makeCDFfile function.")
+      cdf = NULL
+    }
+    
+  }
+  
+  
+  
+  #read microarray data
+  if (!is.null(celfiles) & !is.null(cdf)) {
+    data = ReadAffy(filenames=celfiles, cdfname = cdf)
+    
+    return(data)
+  }
+}
+
+###################################################################################################################################
+
+#readcels.wd
+
+###################################################################################################################################
+
+readcels.wd <- function(directory = getwd(), chiptype, organism , version = 25, annotation = "enst", robust = TRUE, outliers = NULL) {
+  
   #Get CEL files
-  celfiles = list.files(paste0(exdir, "/"), pattern = "CEL", full.names = TRUE)
+  celfiles = list.files(paste0(directory, "/"), pattern = "CEL", full.names = TRUE)
   
   if (!is.null(outliers)){
     
@@ -537,7 +652,6 @@ readcels <- function(gset, chiptype, organism , version = 25, annotation = "enst
     return(data)
   }
 }
-
 
 ###################################################################################################################################
 
@@ -722,7 +836,7 @@ diff_expr <- function(data.expr, meta, comparisons) {
   
   design <- model.matrix(~ 0 + f)
   colnames(design) <- make.names(levels)
-  
+
   
   #fit linear model
   
@@ -1314,7 +1428,7 @@ flat2Cdf<-function(file,chipType,tags=NULL,rows=2560,cols=2560,verbose=10,xyname
     }
   
   if (verbose) cat("Reading TXT file ...")
-  file<-read.table(file,header=TRUE,colClasses=col.class,stringsAsFactors=FALSE,comment.char="",...)
+  file<-read.table(file, header=TRUE,colClasses=col.class,stringsAsFactors=FALSE,comment.char="",...)
   if (verbose) cat(" Done.\n")
   
   if (verbose) cat("Splitting TXT file indices into units ...")
@@ -1504,7 +1618,7 @@ MakeCDFfile <- function(chiptype, organism, version, annotation = "ense", robust
       
       mapping <- rbind(mapping_enst_all, nonsense.probes)
       
-      cdf = paste0(chiptype, "ense", "all", version)
+      cdf = paste0(chiptype, "enst", "all", version)
     }
     
     if (robust == TRUE){
@@ -1514,7 +1628,7 @@ MakeCDFfile <- function(chiptype, organism, version, annotation = "ense", robust
       
       mapping <- rbind(mapping_enst_robust, nonsense.probes)
       
-      cdf = paste0(chiptype, "ense", "robust", version)
+      cdf = paste0(chiptype, "enst", "robust", version)
     }
     
   }
