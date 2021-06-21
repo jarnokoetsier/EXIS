@@ -1,9 +1,9 @@
 ![image](https://user-images.githubusercontent.com/79576459/120113246-e3ae8100-c179-11eb-9ca3-7271d1fbe638.png)
 
 # EXIS 1.0.0
-EXIS is an interactive R shiny application for isoform expression analysis of Affymetrix ST array data from the Gene Expression Omnibus (GEO).
-The isoform-specific expresssion analysis can also be performed outside the R shiny environment using the EXIS workflow. 
-This workflow is suitable for the analysis of both GEO and non-GEO microarray data.
+EXIS is an interactive R shiny application for isoform expression analysis of Affymetrix ST array data from publicly accessible databases,
+inlcuding the Gene Expression Omnibus (GEO) and ArrayExpress.
+The isoform-specific expresssion analysis can also be performed outside the R shiny environment using the EXIS workflow.
 The current version only supports the analysis of the Human Exon 1.0 ST array and the Human Gene 1.0. ST array.
 
 ## Instructions
@@ -17,8 +17,5 @@ Furthermore, when you would like to use the exon-specific probeset definition, a
 
 3) If you would like to use the EXIS app, run the app R script (``EXIS_App.R``). If you open this script in RStudio, you can simply press "Run App" in the top-right corner (see image below). 
 If you prefer using the functions outside the R shiny environment, you can use the workflow R script (``EXIS_Workflow.R``) to guide you through the analysis.
-
-
-
 
 ![image](https://user-images.githubusercontent.com/79576459/122049236-7c800600-cde2-11eb-88a7-88929216ff8b.png)
