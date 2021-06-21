@@ -81,15 +81,23 @@ ui <- fluidPage(
              #get GEO
              ################################################################################################################################
              
-             tabPanel("GEO accession", value = "panel1",
+             tabPanel("Database accession", value = "panel1",
                       
                       
                       
                       mainPanel(
                         
+                        radioGroupButtons(
+                          inputId = "database",
+                          label = NULL,
+                          choices = c("GEO", "ArrayExpress"),
+                          status = "danger"
+                        ),
+                        
                         textInput(inputId = "getGEO", 
-                                  label = "Enter GEO accession", 
-                                  value = "GSE36980"), 
+                                  label = NULL, 
+                                  value = "",
+                                  placeholder = "Accession number"), 
                         
                         
                         actionBttn(inputId = "downloadGEO", 
@@ -368,9 +376,24 @@ server <- function(input, output, session){
   
   #download data
   
+  accession <- reactive({
+    input$getGEO
+  })
+  
+  database <- reactive({
+    input$database
+  })
+  
+  
   gset <- eventReactive(input$downloadGEO, {
     withProgress(message = "Downloading data.....", value = 0, {
-      getGEO(input$getGEO, GSEMatrix =TRUE, getGPL = FALSE)
+      if (database() == "GEO"){
+        gset <- getGEO(accession(), GSEMatrix =TRUE, getGPL = FALSE)
+      }
+      if (database() == "ArrayExpress"){
+        gset <- ArrayExpress(accession())
+      }
+      return(gset)
     })
   })
   
@@ -379,7 +402,7 @@ server <- function(input, output, session){
     sendSweetAlert(
       session = session,
       title = "Information",
-      text = "Enter the GEO accession number. Find your number at https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi",
+      text = "Enter the database accession number. Find your accession number at GEO or ArrayExpress.",
       type = "info"
     )
   })
@@ -409,8 +432,8 @@ server <- function(input, output, session){
     
     checkboxGroupInput(inputId = "groupselect", 
                        label = "Select grouping variable(s)", 
-                       choices = colnames(get_grouping(gset())),
-                       selected = auto_group(gset()))
+                       choices = colnames(get_grouping(gset(), database = database())),
+                       selected = auto_group(get_grouping(gset(), database = database())))
     
     
   })
@@ -423,7 +446,7 @@ server <- function(input, output, session){
       if (input$dependentselect == TRUE) {
         checkboxGroupInput(inputId = "pairselect", 
                            label = "Select pairing variable(s)", 
-                           choices = colnames(get_grouping(gset())))
+                           choices = colnames(get_grouping(gset(), database = database())))
       } 
     }
     
@@ -437,9 +460,11 @@ server <- function(input, output, session){
     
     if (length(input$dependentselect) > 0){
       if (input$dependentselect == FALSE) {
-        groups <- get_grouping(gset())
-        meta <- get_meta(gset = gset(), grouping_column = groups[,input$groupselect])
-        return(meta)
+        if (length(input$groupselect) > 0){
+          groups <- get_grouping(gset(), database = database())
+          meta <- get_meta(gset = gset(), grouping_column = groups[,input$groupselect], database = database())
+          return(meta)
+        }
         
       }
     }
@@ -450,7 +475,7 @@ server <- function(input, output, session){
     if (length(input$dependentselect) > 0){
       if (input$dependentselect == TRUE & (length(input$groupselect) > 0)) {
         groups <- get_grouping(gset())
-        meta <- get_meta(gset = gset(), grouping_column = groups[,input$groupselect], pairing_column = groups[,input$pairselect])
+        meta <- get_meta(gset = gset(), grouping_column = groups[,input$groupselect], pairing_column = groups[,input$pairselect], database())
         return(meta)
         
       }
@@ -503,7 +528,7 @@ server <- function(input, output, session){
                     label = "Chiptype",
                     choices = c("Human Gene 1.0 ST"= "hugene10st", 
                                 "Human Exon 1.0 ST"= "huex10st"),
-                    selected = get_chiptype(gset()))
+                    selected = get_chiptype(gset(), database = database()))
       }
     }
     
@@ -518,7 +543,7 @@ server <- function(input, output, session){
                     label = "Organism",
                     choices = c("Homo sapiens" = "hs",
                                 "Mus musculus" = "mm"),
-                    selected = get_organism(gset()))
+                    selected = get_organism(gset(), database = database()))
       }
     }
     
@@ -665,35 +690,41 @@ server <- function(input, output, session){
       
       if (brainarray() == "exon") {
         
-        data1 <- readcels(gset = gset(), 
-                          chiptype = chiptype(), 
-                          organism = organism(), 
-                          version = version(),
-                          annotation = "ense",
-                          robust = TRUE,
-                          outliers = outliers())
+        data1 <- readcels1(accession = accession(),
+                           database = database(),
+                           chiptype = chiptype(), 
+                           organism = organism(), 
+                           version = version(),
+                           annotation = "ense",
+                           robust = TRUE,
+                           outliers = outliers())
+                        
       }
       
       if (brainarray() == "transcript") {
         
         if (robust() == "all") {
-          data1 <- readcels(gset = gset(), 
-                            chiptype = chiptype(), 
-                            organism = organism(), 
-                            version = version(),
-                            annotation = "enst",
-                            robust = FALSE,
-                            outliers = outliers())
+          data1 <- readcels1(accession = accession(),
+                             database = database(), 
+                             chiptype = chiptype(), 
+                             organism = organism(), 
+                             version = version(),
+                             annotation = "enst",
+                             robust = FALSE,
+                             outliers = outliers())
+                           
         }
         
         if (robust() == "robust") {
-          data1 <- readcels(gset = gset(), 
-                            chiptype = chiptype(), 
-                            organism = organism(), 
-                            version = version(),
-                            annotation = "enst",
-                            robust = TRUE,
-                            outliers = outliers())
+          data1 <- readcels1(accession = accession(),
+                             database = database(),
+                             chiptype = chiptype(), 
+                             organism = organism(), 
+                             version = version(),
+                             annotation = "enst",
+                             robust = TRUE,
+                             outliers = outliers())
+                          
         }
         
       }
@@ -1326,7 +1357,7 @@ server <- function(input, output, session){
   
   output$voltable <- renderDataTable({
     
-    if (length(input$comparison1) > 0){
+    if (length(input$comparisonin1) > 0){
       voldata <- select.top.table()[[table.choice1()]]
       
       if (p.choice() == "Raw P-value"){
@@ -1334,7 +1365,7 @@ server <- function(input, output, session){
           filter(P.value <= p.threshold()) %>%
           filter(abs(logFC) >= logFC.threshold())
         
-        return(voltable)
+      
       }
       
       if (p.choice() == "FDR"){
@@ -1342,10 +1373,10 @@ server <- function(input, output, session){
           filter(FDR <= p.threshold()) %>%
           filter(abs(logFC) >= logFC.threshold())
         
-        return(voltable)
+       
       }
       
-      
+      return(voltable)
     }
     
   })
