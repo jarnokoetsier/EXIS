@@ -129,14 +129,7 @@ ui <- fluidPage(
                       
                       sidebarPanel(
                         
-                        
-                        awesomeCheckbox(inputId = "dependentselect", 
-                                        label = "Dependent samples", 
-                                        value = FALSE),
-                        
                         uiOutput("groups"),
-                        
-                        uiOutput("pairs"),
                         
                         actionBttn(inputId = "meta.ok", 
                                    label = "Next",
@@ -146,7 +139,7 @@ ui <- fluidPage(
                       ),
                       
                       mainPanel(
-                        downloadButton("downloadmeta", "Download table"),
+                        downloadButton("downloadmeta", "Download meta table"),
                         
                         tableOutput(outputId = "grouping") %>% withSpinner(color="#0dc5c1")
                       )
@@ -207,7 +200,7 @@ ui <- fluidPage(
                       
                       mainPanel(
                         
-                        downloadButton("downloadexpr", "Download expression data"),
+                        downloadButton("downloadexpr", "Download expression matrix"),
                         
                         plotOutput("boxplot") %>% withSpinner(color="#0dc5c1"),
                         
@@ -439,46 +432,13 @@ server <- function(input, output, session){
   })
   
   
-  
-  output$pairs <- renderUI({
-    
-    if (length(input$dependentselect) > 0){
-      if (input$dependentselect == TRUE) {
-        checkboxGroupInput(inputId = "pairselect", 
-                           label = "Select pairing variable(s)", 
-                           choices = colnames(get_grouping(gset(), database = database())))
-      } 
-    }
-    
-  })
-  
-  
-  
   #get meta data
   meta <- reactive({
     
-    
-    if (length(input$dependentselect) > 0){
-      if (input$dependentselect == FALSE) {
-        if (length(input$groupselect) > 0){
-          groups <- get_grouping(gset(), database = database())
-          meta <- get_meta(gset = gset(), grouping_column = groups[,input$groupselect], database = database())
-          return(meta)
-        }
-        
-      }
-    }
-    
-    
-    
-    
-    if (length(input$dependentselect) > 0){
-      if (input$dependentselect == TRUE & (length(input$groupselect) > 0)) {
-        groups <- get_grouping(gset())
-        meta <- get_meta(gset = gset(), grouping_column = groups[,input$groupselect], pairing_column = groups[,input$pairselect], database())
-        return(meta)
-        
-      }
+    if (length(input$groupselect) > 0){
+      groups <- get_grouping(gset(), database = database())
+      meta <- get_meta(gset = gset(), grouping_column = groups[,input$groupselect], database = database())
+      return(meta)
     }
     
   })
@@ -781,7 +741,7 @@ server <- function(input, output, session){
   
   #Get sample names
   samples <- eventReactive(input$ann.ok, {
-    samples <- fuzzyjoin::fuzzy_inner_join(as.data.frame(colnames(data.expr())), meta(), by = c("colnames(data.expr())" = "GEO ID"), match_fun = str_detect)
+    samples <- fuzzyjoin::fuzzy_inner_join(as.data.frame(colnames(data.expr())), meta(), by = c("colnames(data.expr())" = "Sample ID"), match_fun = str_detect)
     samples <- samples[,2]
     return(samples)
   })
