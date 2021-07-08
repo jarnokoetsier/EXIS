@@ -201,7 +201,7 @@ auto_group <- function(groups, attempt = 1){
   
   participant_group <- NULL
   
-  n_ch <- c(100,100)
+  n_ch <- NULL
   for (l in 1:length(groups)){
     if ((length(grep("control|non|healthy|treat", groups[[l]], ignore.case = TRUE)) > 0) &
         (length(unique(groups[[l]]))) < length(groups[[l]])){
@@ -210,27 +210,35 @@ auto_group <- function(groups, attempt = 1){
     }
   }
   
-  if (attempt < nrow(n_ch)) {
-    y = 1
-    repeat {
-      
-      if (y == attempt) {
-        break
+  if (!is.null(n_ch)){
+    if (attempt <= nrow(n_ch)) {
+      y = 1
+      repeat {
+        
+        if (y == attempt) {
+          break
+        }
+        y = y + 1
+        n_ch = n_ch[-which.min(n_ch[,2]),]
       }
-      y = y + 1
-      n_ch = n_ch[-which.min(n_ch[,2]),]
+      
+      int1 <- n_ch[which.min(n_ch[,2]),1]
+      participant_group <- as.data.frame(groups)[int1]
+      print(noquote("Grouping has been done automatically by default. Please check whether grouping has occured correctly."))
+      
     }
     
-    int1 <- n_ch[which.min(n_ch[,2]),1]
-    participant_group <- as.data.frame(groups)[int1]
-    print(noquote("Grouping has been done automatically by default. Please check whether grouping has occured correctly."))
+    if (attempt > nrow(n_ch)) {
+      print(noquote("grouping information not found. Upload grouping data manually at grouping_column"))
+    }
     
   }
   
-  if (attempt >= nrow(n_ch)) {
+  
+  if (is.null(n_ch)) {
     print(noquote("grouping information not found. Upload grouping data manually at grouping_column"))
   }
-  
+ 
   return(colnames(participant_group))
 }
 
@@ -284,7 +292,7 @@ get_meta <- function(gset, grouping_column, pairing_column = NULL, file_name = N
     if (exists("participant_group")){
       meta <- as.data.frame(cbind(participants, participant_group))
       rownames(meta) <- NULL
-      colnames(meta) <- c("GEO ID", "Grouping")
+      colnames(meta) <- c("Sample ID", "Grouping")
       return(meta)
     }
   }
@@ -307,7 +315,7 @@ get_meta <- function(gset, grouping_column, pairing_column = NULL, file_name = N
     
     meta <- as.data.frame(cbind(participants, participant_group, pairs))
     rownames(meta) <- NULL
-    colnames(meta) <- c("GEO ID", "Grouping", "Pairing")
+    colnames(meta) <- c("Sample ID", "Grouping", "Pairing")
     return(meta)
   }
   
@@ -452,24 +460,20 @@ get_organism <- function(gset, database = "GEO"){
 readcels1 <- function(accession, database = "GEO", chiptype, organism , version = 25, annotation = "enst", robust = TRUE, outliers = NULL) {
   
   pkg <- installed.packages()[, "Package"]
+  exdir = paste0("data_", accession)
   
   if (database == "GEO"){
-    exdir = paste0("data_", accession)
     
     #Download data
     if (!file.exists(exdir)){
       
-      getGEOSuppFiles(GEO_accession)
-      tarfile = paste0(GEO_accession, "/", GEO_accession, "_RAW.tar")
-      untar(tarfile, exdir = exdir)
-      
-      tarfile = paste0(wd, "/", GEO_accession, "/", GEO_accession, "_RAW.tar")
-      
+      getGEOSuppFiles(accession)
+      tarfile = paste0(accession, "/", accession, "_RAW.tar")
       untar(tarfile, exdir = exdir)
       
     }
     
-    #Get CEL files
+    
     celfiles = list.files(paste0(exdir, "/"), pattern = "CEL", full.names = TRUE)
     
     if (!is.null(outliers)){
@@ -489,9 +493,13 @@ readcels1 <- function(accession, database = "GEO", chiptype, organism , version 
   }
   
   if (database == "ArrayExpress"){
-    getAE(accession, type = "raw")
+    if (!file.exists(exdir)) {
+      getAE(accession, type = "raw", extract = FALSE)
+      unzip(paste0(accession, ".raw.1.zip"), exdir = exdir)
+    }
     
-    celfiles = list.files(pattern = "CEL", full.names = TRUE)
+    
+    celfiles = list.files(paste0(exdir, "/"), pattern = "CEL", full.names = TRUE)
     
     if (!is.null(outliers)){
       
@@ -666,16 +674,16 @@ pca.plot <- function(data.PC, meta, hpc = 1, vpc = 2) {
   samples = as.data.frame(rownames(data.PC$x))
   colnames(samples) <- "cel_names"
   
-  samples_group <- samples %>% fuzzyjoin::fuzzy_inner_join(meta, by = c("cel_names" = "GEO ID"), match_fun = str_detect)
+  samples_group <- samples %>% fuzzyjoin::fuzzy_inner_join(meta, by = c("cel_names" = "Sample ID"), match_fun = str_detect)
   
   Groups <- as.factor(samples_group[,3])
-  Sample <- rownames(data.PC$x)
+  Sample <- samples_group[,2]
   
   
   X = as.data.frame(data.PC$x)[,hpc]
   Y = as.data.frame(data.PC$x)[,vpc]
   
-  pca <- ggplot(data = as.data.frame(data.PC$x), aes(x = X, y = Y, col = Groups, key = Sample)) +
+  pca <- ggplot(data = as.data.frame(data.PC$x), aes(x = X, y = Y, col = Groups, text = paste("Sample:", Sample))) +
     geom_point() +
     ggtitle("PCA plot") +
     xlab(paste0("PC", hpc)) +
@@ -824,7 +832,7 @@ diff_expr <- function(data.expr, meta, comparisons) {
   ph = as.data.frame(colnames(data.expr))
   colnames(ph) <- "cel_names"
   
-  ph1 <- ph %>% fuzzyjoin::fuzzy_inner_join(meta, by = c("cel_names" = "GEO ID"), match_fun = str_detect)
+  ph1 <- ph %>% fuzzyjoin::fuzzy_inner_join(meta, by = c("cel_names" = "Sample ID"), match_fun = str_detect)
   
   
   #model design
